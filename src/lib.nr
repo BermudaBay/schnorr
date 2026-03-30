@@ -48,27 +48,29 @@ fn calculate_signature_challenge(
 }
 
 fn field_to_scalar(value: Field) -> EmbeddedCurveScalar {
-    let bits = value.to_le_bits::<254>();
+    // Safety: lo and hi are range-checked and reconstruction is verified below.
+    let (lo, hi) = unsafe { decompose_hint(value) };
+    lo.assert_max_bit_size::<128>();
+    hi.assert_max_bit_size::<126>();
+    assert(lo + hi * 0x100000000000000000000000000000000 == value);
+    EmbeddedCurveScalar::new(lo, hi)
+}
+
+unconstrained fn decompose_hint(value: Field) -> (Field, Field) {
+    let bytes = value.to_le_bytes::<32>();
     let mut lo: Field = 0;
     let mut hi: Field = 0;
-    let mut lo_pow: Field = 1;
-    let mut hi_pow: Field = 1;
-
-    for i in 0..128 {
-        if bits[i] == 1 {
-            lo += lo_pow;
-        }
-        lo_pow += lo_pow;
+    let mut pow: Field = 1;
+    for i in 0..16 {
+        lo += (bytes[i] as Field) * pow;
+        pow *= 256;
     }
-
-    for i in 128..254 {
-        if bits[i] == 1 {
-            hi += hi_pow;
-        }
-        hi_pow += hi_pow;
+    pow = 1;
+    for i in 16..32 {
+        hi += (bytes[i] as Field) * pow;
+        pow *= 256;
     }
-
-    EmbeddedCurveScalar::new(lo, hi)
+    (lo, hi)
 }
 
 mod test {
