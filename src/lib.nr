@@ -1,7 +1,5 @@
-use dep::poseidon::poseidon2::Poseidon2;
-use std::embedded_curve_ops::{
-    EmbeddedCurvePoint, EmbeddedCurveScalar, fixed_base_scalar_mul, multi_scalar_mul,
-};
+use ::poseidon::poseidon2::Poseidon2;
+use std::embedded_curve_ops::{EmbeddedCurvePoint, EmbeddedCurveScalar, multi_scalar_mul};
 
 pub fn verify_signature(
     public_key: EmbeddedCurvePoint,
@@ -22,13 +20,16 @@ pub fn verify_signature(
         let c_scalar = field_to_scalar(c);
 
         // Verify the Schnorr equation: zG == R + cP.
-        let lhs = fixed_base_scalar_mul(z);
-        let rhs = multi_scalar_mul([r, public_key], [EmbeddedCurveScalar::new(1, 0), c_scalar]);
+        // This can also be written as zG - cP == R, which is what we compute here to avoid two EC operations.
+        // Negate the public key: -(x, y) = (x, -y). The field negation is correct
+        // because Noir's Field is BN254's Fr, which is Grumpkin's base field.
+        let neg_pk =
+            EmbeddedCurvePoint { x: public_key.x, y: 0 - public_key.y, is_infinite: false };
+        let result = multi_scalar_mul([EmbeddedCurvePoint::generator(), neg_pk], [z, c_scalar]);
 
         is_ok &= c != 0;
-        is_ok &= !lhs.is_infinite;
-        is_ok &= !rhs.is_infinite;
-        is_ok &= (lhs.x == rhs.x) & (lhs.y == rhs.y) & (lhs.is_infinite == rhs.is_infinite);
+        is_ok &= !result.is_infinite;
+        is_ok &= (result.x == r.x) & (result.y == r.y);
     } else {
         is_ok = false;
     }
