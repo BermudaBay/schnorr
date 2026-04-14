@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Edit|Write",
+      "hooks": [{
+        "type": "command",
+        "command": "nargo fmt 2>/dev/null; exit 0"
+      }]
+    }]
+  }
+}
