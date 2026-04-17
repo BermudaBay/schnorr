@@ -8,12 +8,10 @@ pub fn verify_signature(
     domain_separator: Field,
 ) -> bool {
     // signature = [R.x, R.y, z.lo, z.hi]
-    let r = EmbeddedCurvePoint { x: signature[0], y: signature[1], is_infinite: false };
+    let r = EmbeddedCurvePoint { x: signature[0], y: signature[1] };
     let z = EmbeddedCurveScalar::new(signature[2], signature[3]);
     let mut is_ok = (public_key.y * public_key.y == public_key.x * public_key.x * public_key.x - 17)
-        & (!public_key.is_infinite)
-        & (r.y * r.y == r.x * r.x * r.x - 17)
-        & (!r.is_infinite);
+        & (r.y * r.y == r.x * r.x * r.x - 17);
 
     if (z.lo != 0) | (z.hi != 0) {
         let c = calculate_signature_challenge(r, public_key, message, domain_separator);
@@ -23,12 +21,10 @@ pub fn verify_signature(
         // This can also be written as zG - cP == R, which is what we compute here to avoid two EC operations.
         // Negate the public key: -(x, y) = (x, -y). The field negation is correct
         // because Noir's Field is BN254's Fr, which is Grumpkin's base field.
-        let neg_pk =
-            EmbeddedCurvePoint { x: public_key.x, y: 0 - public_key.y, is_infinite: false };
+        let neg_pk = EmbeddedCurvePoint { x: public_key.x, y: 0 - public_key.y };
         let result = multi_scalar_mul([EmbeddedCurvePoint::generator(), neg_pk], [z, c_scalar]);
 
         is_ok &= c != 0;
-        is_ok &= !result.is_infinite;
         is_ok &= (result.x == r.x) & (result.y == r.y);
     } else {
         is_ok = false;
@@ -83,7 +79,6 @@ mod test {
         let public_key: EmbeddedCurvePoint = EmbeddedCurvePoint {
             x: 1,
             y: 17631683881184975370165255887551781615748388533673675138860,
-            is_infinite: false,
         };
         let signature: [Field; 4] = [0; 4];
         let message: Field = 0;
@@ -109,7 +104,7 @@ mod test {
         let domain_separator: Field =
             18593004833411356993981768246051920231328811611081460266067910279816360120902;
 
-        let pub_key = EmbeddedCurvePoint { x: pub_key_x, y: pub_key_y, is_infinite: false };
+        let pub_key = EmbeddedCurvePoint { x: pub_key_x, y: pub_key_y};
         let valid_signature = verify_signature(pub_key, signature, message, domain_separator);
         assert(valid_signature);
     }
